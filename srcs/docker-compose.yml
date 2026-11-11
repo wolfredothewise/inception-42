@@ -1,8 +1,8 @@
-
 services:
   mariadb:
+    image: mariadb
     container_name: mariadb
-    build: 
+    build:
       context: requirements/mariadb
       dockerfile: Dockerfile
     env_file: .env
@@ -15,50 +15,51 @@ services:
       - "3306"
 
   wordpress:
+    image: wordpress
     container_name: wordpress
-    build: 
+    build:
       context: requirements/wordpress
       dockerfile: Dockerfile
     env_file: .env
     volumes:
-      - wordpress:/var/www/wordpress
+      - wordpress:/var/www/html
     networks:
       - inception
     depends_on:
       - mariadb
-    restart: on-failure
-    expose: 
+    restart: unless-stopped
+    expose:
       - "9000"
 
   nginx:
+    image: nginx
     container_name: nginx
-    build: 
+    build:
       context: requirements/nginx
       dockerfile: Dockerfile
-    env_file: .env
     volumes:
-      - wordpress:/var/www/wordpress
+      - wordpress:/var/www/html:ro
     networks:
       - inception
     depends_on:
       - wordpress
     ports:
       - "443:443"
-    restart: on-failure
+    restart: unless-stopped
 
 volumes:
   mariadb:
     driver: local
     driver_opts:
-      type: 'none'
-      o: 'bind'
-      device: '/home/vhedo-ga/data/mariadb'
+      type: none
+      o: bind
+      device: /home/vhedo-ga/data/mariadb
   wordpress:
     driver: local
     driver_opts:
-      type: 'none'
-      o: 'bind'
-      device: '/home/vhedo-ga/data/wordpress'
+      type: none
+      o: bind
+      device: /home/vhedo-ga/data/wordpress
 
 networks:
   inception:

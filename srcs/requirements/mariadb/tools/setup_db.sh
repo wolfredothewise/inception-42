@@ -1,24 +1,31 @@
 #!/bin/bash
 set -e
 
-# Solo inicializa los usuarios si la base de datos no existe previamente en el volumen
-if [ ! -d "/var/lib/mysql/${SQL_DATABASE}" ]; then
-  service mariadb start
+mkdir -p /run/mysqld
+chown -R mysql:mysql /run/mysqld /var/lib/mysql
 
-  # Esperar a que la base de datos responda antes de lanzar los comandos SQL
+if [ ! -d /var/lib/mysql/mysql ]; then
+  mariadb-install-db --user=mysql --datadir=/var/lib/mysql >/dev/null
+fi
+
+if [ ! -d "/var/lib/mysql/${SQL_DATABASE}" ]; then
+  mysqld --user=mysql --skip-networking &
+  pid=$!
+
   until mariadb-admin ping >/dev/null 2>&1; do
     sleep 1
   done
 
-  # Inyección de usuarios y base de datos usando las variables del .env
-  mariadb -e "CREATE DATABASE IF NOT EXISTS \`${SQL_DATABASE}\`;"
-  mariadb -e "CREATE USER IF NOT EXISTS \`${SQL_USER}\`@'%' IDENTIFIED BY '${SQL_PASSWORD}';"
-  mariadb -e "GRANT ALL PRIVILEGES ON \`${SQL_DATABASE}\`.* TO \`${SQL_USER}\`@'%';"
-  mariadb -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${SQL_ROOT_PASSWORD}';"
-  mariadb -e "FLUSH PRIVILEGES;"
+  mariadb <<EOF
+CREATE DATABASE IF NOT EXISTS ${SQL_DATABASE};
+CREATE USER IF NOT EXISTS '${SQL_USER}'@'%' IDENTIFIED BY '${SQL_PASSWORD}';
+GRANT ALL PRIVILEGES ON ${SQL_DATABASE}.* TO '${SQL_USER}'@'%';
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${SQL_ROOT_PASSWORD}';
+FLUSH PRIVILEGES;
+EOF
 
-  mysqladmin -u root -p"${SQL_ROOT_PASSWORD}" shutdown
+  mariadb-admin -u root -p"${SQL_ROOT_PASSWORD}" shutdown
+  wait $pid
 fi
 
-# Mantener el proceso MariaDB en primer plano (PID 1)
-exec mysqld_safe
+exec mysqld --user=mysql

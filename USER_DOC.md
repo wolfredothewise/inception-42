@@ -6,6 +6,12 @@ Inception runs a local WordPress site through an HTTPS-only NGINX entry point.
 WordPress uses PHP-FPM and stores its data in MariaDB. The application and
 database are reachable only through Docker's private `inception` network.
 
+The three services have distinct roles:
+
+- **NGINX** terminates TLS and is the only service exposed to the host.
+- **WordPress/PHP-FPM** serves the website and processes PHP requests.
+- **MariaDB** stores WordPress content, users, and configuration data.
+
 ## First installation
 
 1. Install Docker Engine and the Docker Compose plugin.
@@ -31,9 +37,32 @@ database are reachable only through Docker's private `inception` network.
 
 6. Visit `https://vhedo-ga.42.fr`. Accept the browser warning for the
    self-signed development certificate.
+7. Open `https://vhedo-ga.42.fr/wp-admin` to reach the WordPress
+   administration panel.
 
 The initial WordPress installation creates the administrator and author
 accounts described by `WP_ADMIN_*` and `WP_USER_*` in `srcs/.env`.
+
+## Credentials
+
+The local credential source is `srcs/.env`, which is ignored by Git. The
+database values are `SQL_DATABASE`, `SQL_USER`, `SQL_PASSWORD`, and
+`SQL_ROOT_PASSWORD`. The WordPress administrator uses `WP_ADMIN_USER`,
+`WP_ADMIN_PASSWORD`, and `WP_ADMIN_EMAIL`; the additional user uses
+`WP_USER_LOGIN`, `WP_USER_PASSWORD`, and `WP_USER_EMAIL`.
+
+Manage credentials by editing `srcs/.env`, restricting its permissions
+(`chmod 600 srcs/.env`), and recreating the containers:
+
+```bash
+make down
+make
+```
+
+Do not paste real passwords into issues, screenshots, logs, Dockerfiles, or
+tracked files. Changing an already-installed WordPress password may also
+require changing it from `/wp-admin` or with WP-CLI; changing `.env` alone does
+not rewrite existing database users.
 
 ## Daily operation
 
@@ -98,3 +127,17 @@ make
 ```
 
 This permanently removes the local WordPress site and MariaDB contents.
+
+## Authorized red-team checks
+
+For this local lab, the main defensive boundary is easy to verify:
+
+```bash
+docker ps
+docker port nginx
+docker network inspect srcs_inception
+```
+
+Only NGINX should publish host port `443`; PHP-FPM `9000` and MariaDB `3306`
+must remain internal. Never test this stack or attempt exploitation outside an
+authorized environment.

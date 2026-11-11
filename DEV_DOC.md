@@ -109,6 +109,52 @@ After changing a Dockerfile or configuration, recreate the services with
 recreation is required because Compose injects variables when containers are
 created.
 
+## From-scratch setup
+
+1. Install Debian Bookworm, Docker Engine, the Docker Compose plugin, Git, and
+   the usual shell utilities.
+2. Clone the repository and enter its root directory.
+3. Add `127.0.0.1 vhedo-ga.42.fr` to `/etc/hosts`.
+4. Create `srcs/.env` from `.env.example` and replace all example values:
+
+   ```bash
+   cp .env.example srcs/.env
+   chmod 600 srcs/.env
+   ```
+
+5. Confirm that `srcs/.env` is not tracked, then build and launch:
+
+   ```bash
+   make
+   ```
+
+Compose injects the environment file into all three services. The Makefile
+creates `/home/vhedo-ga/data/mariadb` and
+`/home/vhedo-ga/data/wordpress` before Compose starts.
+
+## Container and volume management
+
+Use these commands when diagnosing or maintaining the deployment:
+
+```bash
+docker compose -f srcs/docker-compose.yml up -d --build
+docker compose -f srcs/docker-compose.yml stop
+docker compose -f srcs/docker-compose.yml start
+docker compose -f srcs/docker-compose.yml restart
+docker compose -f srcs/docker-compose.yml down
+docker compose -f srcs/docker-compose.yml down -v
+docker ps
+docker logs nginx
+docker exec -it wordpress bash
+docker volume ls
+docker volume inspect srcs_mariadb srcs_wordpress
+```
+
+`down` removes containers and the Compose network but keeps the host data.
+`down -v` removes the named volume objects; the local driver paths remain until
+they are explicitly deleted. `make fclean` additionally removes both host data
+directories and prunes unused Docker resources.
+
 ## Port-change checklist
 
 If a reviewer asks for a port change, update every endpoint in the path:
@@ -127,3 +173,13 @@ volume paths and permissions before extending the project. The Docker bridge
 network is an application boundary, not a replacement for authentication,
 patching, or authorization. Red-team testing should remain authorized and
 limited to the local lab.
+
+## Authorized red-team perspective
+
+The stack models a common assessment path without turning this repository into
+an exploit guide: NGINX is the exposed edge, WordPress is the application tier,
+and MariaDB is the internal data tier. A configuration review should confirm
+that only port `443` is published, `.env` is not committed, PHP-FPM and MariaDB
+are reachable only through the bridge network, and host mounts are limited to
+the two required data directories. These checks are defensive and must only be
+performed with authorization.
